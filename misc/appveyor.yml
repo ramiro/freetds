@@ -1,0 +1,207 @@
+# Do not build on tags (GitHub only)
+#skip_tags: true
+
+# enable service required for build/tests
+#services:
+#  - mssql2008r2sp2
+
+-
+  branches:
+    only:
+      - appveyor
+
+  version: "{build}"
+
+  shallow_clone: true
+
+  environment:
+
+    global:
+      # SDK v7.0 MSVC Express 2008's SetEnv.cmd script will fail if the
+      # /E:ON and /V:ON options are not enabled in the batch script intepreter
+      # See: http://stackoverflow.com/a/13751649/163740
+      WITH_COMPILER: "cmd /E:ON /V:ON /C ..\\misc\\run_with_compiler.cmd"
+
+    matrix:
+    - PLATFORM: win32
+      WIDTH: 32
+      VS_VERSION: "2008"
+
+    - PLATFORM: x64
+    #- PLATFORM: win64
+      WIDTH: 64
+      VS_VERSION: "2008"
+
+    - PLATFORM: win32
+      WIDTH: 32
+      VS_VERSION: "2010"
+
+    - PLATFORM: x64
+    #- PLATFORM: win64
+      WIDTH: 64
+      VS_VERSION: "2010"
+
+  configuration:
+    - release
+    #- debug
+
+  build_script:
+    - mkdir build
+    - cd build
+    - "%WITH_COMPILER% cmake -G \"NMake Makefiles\" .."
+    - "%WITH_COMPILER% nmake db-lib libct ct  bsqldb bsqlodbc datacopy defncopy freebcp tsql"
+
+  after_build:
+    - mkdir vs%VS_VERSION%_%WIDTH%-master
+    - mkdir vs%VS_VERSION%_%WIDTH%-master\lib
+    - copy src\dblib\db-lib.lib vs%VS_VERSION%_%WIDTH%-master\lib\
+    - copy src\ctlib\libct.lib vs%VS_VERSION%_%WIDTH%-master\lib\
+    - copy src\tds\tds.lib vs%VS_VERSION%_%WIDTH%-master\lib\
+    - mkdir vs%VS_VERSION%_%WIDTH%-master\include
+    - cd ..\include
+    #- cp sqlfront.h sybdb.h sybfront.h tds_sysdep_public.h ../vs%VS_VERSION%_%WIDTH%-master/include/
+    - cp sqlfront.h sybdb.h sybfront.h ../build/vs%VS_VERSION%_%WIDTH%-master/include/
+    - cd ..\build
+    - 7z a vs%VS_VERSION%_%WIDTH%-master.zip vs%VS_VERSION%_%WIDTH%-master
+
+  test: off
+
+  artifacts:
+    - path: vs*.zip
+
+-
+  branches:
+    only:
+      - appveyor-0.95
+
+  version: "{build}"
+
+  shallow_clone: true
+
+  environment:
+
+    global:
+      # SDK v7.0 MSVC Express 2008's SetEnv.cmd script will fail if the
+      # /E:ON and /V:ON options are not enabled in the batch script intepreter
+      # See: http://stackoverflow.com/a/13751649/163740
+      WITH_COMPILER: "cmd /E:ON /V:ON /C ..\\misc\\run_with_compiler.cmd"
+
+    matrix:
+    - PLATFORM: win32
+      WIDTH: 32
+      VS_VERSION: "2008"
+
+    - PLATFORM: x64
+    #- PLATFORM: win64
+      WIDTH: 64
+      VS_VERSION: "2008"
+
+    - PLATFORM: win32
+      WIDTH: 32
+      VS_VERSION: "2010"
+
+    - PLATFORM: x64
+    #- PLATFORM: win64
+      WIDTH: 64
+      VS_VERSION: "2010"
+
+  configuration:
+    - release
+    #- debug
+
+  build_script:
+    - mkdir build
+    - cd build
+    - "%WITH_COMPILER% cmake -G \"NMake Makefiles\" .."
+    - "%WITH_COMPILER% nmake db-lib libct ct  bsqldb bsqlodbc datacopy defncopy freebcp tsql"
+
+  after_build:
+    - mkdir vs%VS_VERSION%_%WIDTH%
+    - mkdir vs%VS_VERSION%_%WIDTH%\lib
+    - copy src\dblib\db-lib.lib vs%VS_VERSION%_%WIDTH%\lib\
+    - copy src\ctlib\libct.lib vs%VS_VERSION%_%WIDTH%\lib\
+    - copy src\tds\tds.lib vs%VS_VERSION%_%WIDTH%\lib\
+    - mkdir vs%VS_VERSION%_%WIDTH%\include
+    - cd ..\include
+    #- cp sqlfront.h sybdb.h sybfront.h tds_sysdep_public.h ../vs%VS_VERSION%_%WIDTH%/include/
+    - cp sqlfront.h sybdb.h sybfront.h ../build/vs%VS_VERSION%_%WIDTH%/include/
+    - cd ..\build
+    - 7z a vs%VS_VERSION%_%WIDTH%.zip vs%VS_VERSION%_%WIDTH%
+
+  test: off
+
+  artifacts:
+    - path: build\vs*.zip
+
+-
+  branches:
+    only:
+      - appveyor-0.91
+
+  version: "{build}"
+
+  shallow_clone: true
+
+  environment:
+
+    global:
+      # SDK v7.0 MSVC Express 2008's SetEnv.cmd script will fail if the
+      # /E:ON and /V:ON options are not enabled in the batch script intepreter
+      # See: http://stackoverflow.com/a/13751649/163740
+      WITH_COMPILER: "cmd /E:ON /V:ON /C .\\misc\\run_with_compiler.cmd"
+
+    matrix:
+    - PLATFORM: win32
+      WIDTH: 32
+      VS_VERSION: "2008"
+
+    - PLATFORM: x64
+    #- PLATFORM: win64
+      WIDTH: 64
+      VS_VERSION: "2008"
+
+    - PLATFORM: win32
+      WIDTH: 32
+      VS_VERSION: "2010"
+
+    - PLATFORM: x64
+    #- PLATFORM: win64
+      WIDTH: 64
+      VS_VERSION: "2010"
+
+  configuration:
+    - release
+    #- debug
+
+  build_script:
+    - "%WITH_COMPILER% nmake -fNmakefile -nologo PLATFORM=%PLATFORM% CONFIGURATION=%CONFIGURATION% db-lib libct apps tsql bsqldb"
+
+  after_build:
+    - mkdir vs%VS_VERSION%_%WIDTH%
+    - mkdir vs%VS_VERSION%_%WIDTH%\lib
+    - copy src\dblib\%PLATFORM%\%CONFIGURATION%\db-lib.lib vs%VS_VERSION%_%WIDTH%\lib\
+    - copy src\ctlib\%PLATFORM%\%CONFIGURATION%\libct.lib vs%VS_VERSION%_%WIDTH%\lib\
+    - copy src\tds\%PLATFORM%\%CONFIGURATION%\tds.lib vs%VS_VERSION%_%WIDTH%\lib\
+    - mkdir vs%VS_VERSION%_%WIDTH%\include
+    - cd include
+    - cp sqlfront.h sybdb.h sybfront.h tds_sysdep_public.h ../vs%VS_VERSION%_%WIDTH%/include/
+    - cd ..
+    - 7z a vs%VS_VERSION%_%WIDTH%.zip vs%VS_VERSION%_%WIDTH%
+
+  test: off
+#test_script:
+#  - set INSTANCENAME=SQL2008R2SP2
+#  - "powershell appveyor\\sql-server-activate-tcp-fixed-port.ps1"
+#  - net stop  MSSQL$%INSTANCENAME%
+#  - net start MSSQL$%INSTANCENAME%
+#
+#  #- net stop  MSSQL$%INSTANCENAME%
+
+#after_test:
+#  - echo
+
+  artifacts:
+    - path: vs*.zip
+
+#on_success:
+#  - TODO: upload artifacts to a public site with a stable URL

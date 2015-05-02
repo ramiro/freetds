@@ -274,7 +274,7 @@
 #define HAVE_ODBCSS_H 1
 #endif
 
-#define TDS42 1
+#define TDS71 1
 
 #ifdef _MSC_VER
 #define inline __inline

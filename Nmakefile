@@ -299,8 +299,8 @@ DEF = 	-D "_MBCS" -D "_LIB" -D "WIN32" \
 	-D "_CRT_SECURE_NO_WARNINGS" -D _CRT_NONSTDC_NO_DEPRECATE \
 	-D "HAVE_CONFIG_H" \
 	-D "_FREETDS_LIBRARY_SOURCE" 
-DBG = -MTd -Od -D "_DEBUG"  -ZI -RTC1	
-REL = -MT  -O2 -D "_NDEBUG" -Zi
+DBG = -MDd -Od -D "_DEBUG"  -ZI -RTC1
+REL = -MD  -O2 -D "_NDEBUG" -Zi
 
 MSLIBS = Ws2_32.lib shell32.lib	
 

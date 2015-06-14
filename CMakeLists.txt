@@ -124,6 +124,11 @@ foreach(fn
 	config_write("#cmakedefine ${var} 1\n\n")
 endforeach(fn)
 
+if(WIN32)
+	config_write("#define HAVE_ICONV 1\n\n")
+	include_directories(${CMAKE_SOURCE_DIR}/iconv/include)
+endif(WIN32)
+
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
 
@@ -316,6 +321,11 @@ if(WIN32)
 else(WIN32)
 	# TODO check libraries
 	set(lib_NETWORK ${lib_GNUTLS} gssapi_krb5)
+endif(WIN32)
+
+if(WIN32)
+	link_directories(${CMAKE_SOURCE_DIR}/iconv/lib)
+	set(lib_NETWORK ${lib_NETWORK} iconv.lib)
 endif(WIN32)
 
 include_directories(${CMAKE_BINARY_DIR}/include include win32)

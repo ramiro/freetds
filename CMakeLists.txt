@@ -71,6 +71,7 @@ include(CheckFunctionExists)
 include(CheckLibraryExists)
 include(CheckStructHasMember)
 include(CheckPrototypeDefinition)
+include(CheckCSourceCompiles)
 
 find_package(Perl)
 
@@ -345,12 +346,29 @@ config_write("
 #define HAVE_RL_ON_NEW_LINE 1
 #define HAVE_RL_RESET_LINE_STATE 1
 
-// iconv
-#define HAVE_ICONV 1
-#define ICONV_CONST
 ")
 
 endif(WIN32)
+
+#check_library_exists(iconv iconv_open "" ICONV_FOUND)
+#search_library(iconv_open ICONV_FOUND lib_ICONV "libiconv;iconv")
+check_function_exists(iconv ICONV_FOUND)
+if(ICONV_FOUND)
+        config_write("#define HAVE_ICONV 1\n\n")
+	check_c_source_compiles("#include <iconv.h>
+int main(){
+	iconv_t conv = 0;
+	const char* in = 0;
+	size_t ilen = 0;
+	char* out = 0;
+	size_t olen = 0;
+	iconv(conv, &in, &ilen, &out, &olen);
+}
+" ICONV_CONST)
+	if(ICONV_CONST)
+		config_write("#define ICONV_CONST\n\n")
+	endif(ICONV_CONST)
+endif(ICONV_FOUND)
 
 set(lib_BASE ${lib_RT} ${CMAKE_THREAD_LIBS_INIT})
 

@@ -678,39 +678,39 @@ tds_config_login(TDSLOGIN * connection, TDSLOGIN * login)
 	}
 	if (login->tds_version)
 		connection->tds_version = login->tds_version;
-	if (!tds_dstr_isempty(&login->language)) {
+	if (res && !tds_dstr_isempty(&login->language)) {
 		res = tds_dstr_dup(&connection->language, &login->language);
 	}
-	if (!tds_dstr_isempty(&login->server_charset)) {
+	if (res && !tds_dstr_isempty(&login->server_charset)) {
 		res = tds_dstr_dup(&connection->server_charset, &login->server_charset);
 	}
-	if (!tds_dstr_isempty(&login->client_charset)) {
+	if (res && !tds_dstr_isempty(&login->client_charset)) {
 		res = tds_dstr_dup(&connection->client_charset, &login->client_charset);
 		tdsdump_log(TDS_DBG_INFO1, "tds_config_login: %s is %s.\n", "client_charset",
 			    tds_dstr_cstr(&connection->client_charset));
 	}
 	if (login->use_utf16)
 		connection->use_utf16 = login->use_utf16;
-	if (!tds_dstr_isempty(&login->database)) {
+	if (res && !tds_dstr_isempty(&login->database)) {
 		res = tds_dstr_dup(&connection->database, &login->database);
 		tdsdump_log(TDS_DBG_INFO1, "tds_config_login: %s is %s.\n", "database_name",
 			    tds_dstr_cstr(&connection->database));
 	}
-	if (!tds_dstr_isempty(&login->client_host_name)) {
+	if (res && !tds_dstr_isempty(&login->client_host_name)) {
 		res = tds_dstr_dup(&connection->client_host_name, &login->client_host_name);
 	}
-	if (!tds_dstr_isempty(&login->app_name)) {
+	if (res && !tds_dstr_isempty(&login->app_name)) {
 		res = tds_dstr_dup(&connection->app_name, &login->app_name);
 	}
-	if (!tds_dstr_isempty(&login->user_name)) {
+	if (res && !tds_dstr_isempty(&login->user_name)) {
 		res = tds_dstr_dup(&connection->user_name, &login->user_name);
 	}
-	if (!tds_dstr_isempty(&login->password)) {
+	if (res && !tds_dstr_isempty(&login->password)) {
 		/* for security reason clear memory */
 		tds_dstr_zero(&connection->password);
 		res = tds_dstr_dup(&connection->password, &login->password);
 	}
-	if (!tds_dstr_isempty(&login->library)) {
+	if (res && !tds_dstr_isempty(&login->library)) {
 		res = tds_dstr_dup(&connection->library, &login->library);
 	}
 	if (login->encryption_level) {
@@ -738,6 +738,10 @@ tds_config_login(TDSLOGIN * connection, TDSLOGIN * login)
 
 	/* copy other info not present in configuration file */
 	connection->capabilities = login->capabilities;
+
+	connection->use_new_password = login->use_new_password;
+	if (res)
+		res = tds_dstr_dup(&connection->new_password, &login->new_password);
 
 	return res != NULL;
 }
@@ -869,6 +873,7 @@ tds_config_verstr(const char *tdsver, TDSLOGIN * login)
 		, { "7.1", 0x701 }
 		, { "7.2", 0x702 }
 		, { "7.3", 0x703 }
+		, { "7.4", 0x704 }
 		};
 	const struct tdsvername_t *pver;
 
@@ -1306,6 +1311,8 @@ tds_get_compiletime_settings(void)
 			, "7.2"
 #		elif TDS73
 			, "7.3"
+#		elif TDS74
+			, "7.4"
 #		else
 			, "4.2"
 #		endif

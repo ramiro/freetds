@@ -11,7 +11,7 @@ dnl ------------------------------------------------------------
 # ------------------------------------------------------------
 # Initialization
 # ------------------------------------------------------------
-AC_INIT(FreeTDS, 0.96.dev.esyscmd(printf $(date +"%Y%m%d")))
+AC_INIT(FreeTDS, 0.100.dev.esyscmd(printf $(date +"%Y%m%d")))
 AC_CONFIG_SRCDIR(src/dblib/dblib.c)
 AC_PREREQ(2.53)
 
@@ -296,13 +296,13 @@ AC_CHECK_MEMBERS([struct tm.__tm_zone],,,[#include <sys/types.h>
 ])
 AC_CHECK_HEADERS([errno.h libgen.h \
 	limits.h locale.h poll.h \
-	readpassphrase.h signal.h stddef.h \
+	signal.h stddef.h \
 	sys/param.h sys/select.h sys/stat.h \
 	sys/time.h sys/types.h sys/resource.h \
 	sys/wait.h unistd.h netdb.h \
 	wchar.h inttypes.h winsock2.h \
 	localcharset.h valgrind/memcheck.h malloc.h dirent.h])
-AC_CHECK_HEADERS([windows.h sql.h odbcss.h],[],[],[[#ifdef HAVE_WINDOWS_H
+AC_CHECK_HEADERS([windows.h sql.h],[],[],[[#ifdef HAVE_WINDOWS_H
 # include <windows.h>
 #endif
 #ifdef HAVE_SQL_H
@@ -481,10 +481,10 @@ TDS_NULL_IS_ZERO
 # ------------------------------------------------------------
 # Checks for library functions.
 # ------------------------------------------------------------
-AC_CHECK_FUNCS([_atoi64 vsnprintf _vsnprintf _vscprintf gettimeofday \
+AC_CHECK_FUNCS([vsnprintf _vsnprintf _vscprintf gettimeofday \
 nl_langinfo locale_charset setenv putenv \
 getuid getpwuid getpwuid_r fstat alarm fork \
-gethrtime localtime_r setitimer _lseeki64 _telli64 \
+gethrtime localtime_r setitimer \
 _fseeki64 _ftelli64 setrlimit pthread_cond_timedwait \
 _lock_file _unlock_file usleep nanosleep readdir_r])
 OLD_LIBS="$LIBS"
@@ -524,7 +524,7 @@ AC_HAVE_MALLOC_OPTIONS
 AC_MSG_RESULT(checking compile-time options)
 
 AC_ARG_WITH(tdsver,
-AS_HELP_STRING([--with-tdsver=VERSION], [TDS protocol version (4.2/4.6/5.0/7.0/7.1/7.2/7.3) [5.0]]))
+AS_HELP_STRING([--with-tdsver=VERSION], [TDS protocol version (4.2/4.6/5.0/7.0/7.1/7.2/7.3/7.4) [5.0]]))
 if test "$with_tdsver" = "4.2"; then
 	AC_DEFINE(TDS42, 1, [Define to use TDS 4.2 by default])
 elif test "$with_tdsver" = "4.6"; then
@@ -537,6 +537,8 @@ elif test "$with_tdsver" = "7.2"; then
 	AC_DEFINE(TDS72, 1, [Define to use TDS 7.2 by default])
 elif test "$with_tdsver" = "7.3"; then
 	AC_DEFINE(TDS73, 1, [Define to use TDS 7.3 by default])
+elif test "$with_tdsver" = "7.4"; then
+	AC_DEFINE(TDS74, 1, [Define to use TDS 7.4 by default])
 else
 	AC_DEFINE(TDS50, 1, [Define to use TDS 5.0 by default])
 fi
@@ -931,8 +933,9 @@ AC_CONFIG_FILES(include/freetds/version.h \
 	src/apps/Makefile \
 	src/apps/fisql/Makefile \
 	freetds.spec \
-	win32/Makefile win32/config.h \
-	win32/version.rc win32/freetds.nsh \
+	win32/Makefile \
+	win32/freetds.nsh \
+	src/odbc/version.rc \
 	vms/Makefile \
 	doc/freebcp.1 doc/tsql.1 doc/osql.1 \
 	doc/bsqldb.1 doc/bsqlodbc.1 doc/defncopy.1 \

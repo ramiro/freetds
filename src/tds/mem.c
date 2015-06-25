@@ -955,6 +955,7 @@ tds_alloc_login(int use_environment)
 	tds_dstr_init(&login->user_name);
 	tds_dstr_init(&login->password);
 	tds_dstr_init(&login->library);
+	tds_dstr_init(&login->new_password);
 
 	login->ip_addrs = NULL;
 	login->connected_addr = NULL;
@@ -997,6 +998,8 @@ tds_free_login(TDSLOGIN * login)
 	/* for security reason clear memory */
 	tds_dstr_zero(&login->password);
 	tds_dstr_free(&login->password);
+	tds_dstr_zero(&login->new_password);
+	tds_dstr_free(&login->new_password);
 	tds_dstr_free(&login->server_name);
 	tds_dstr_free(&login->language);
 	tds_dstr_free(&login->server_charset);
@@ -1089,7 +1092,7 @@ tds_deinit_connection(TDSCONNECTION *conn)
 static TDSCONNECTION *
 tds_init_connection(TDSCONNECTION *conn, TDSCONTEXT *context, unsigned int bufsize)
 {
-	int sv[2];
+	TDS_SYS_SOCKET sv[2];
 
 	conn->env.block_size = bufsize;
 	conn->s_signal = conn->s_signaled = conn->s = INVALID_SOCKET;

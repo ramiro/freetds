@@ -68,6 +68,19 @@ odbc_setenv(const char *name, const char *value, int overwrite)
 }
 #endif
 
+/* this should be extended with all possible systems... */
+static const char *const search_driver[] = {
+	".libs/libtdsodbc.so",
+	".libs/libtdsodbc.sl",
+	".libs/libtdsodbc.dylib",
+	".libs/libtdsodbc.dll",
+	"_libs/libtdsodbc.dll",
+	"debug/tdsodbc.dll",
+	"release/tdsodbc.dll",
+	"libtdsodbc.so",
+	NULL
+};
+
 int
 odbc_read_login_info(void)
 {
@@ -76,6 +89,7 @@ odbc_read_login_info(void)
 	char line[512];
 	char *s1, *s2;
 #ifndef _WIN32
+	const char **search_p;
 	char path[1024];
 	int len;
 #endif
@@ -127,10 +141,11 @@ odbc_read_login_info(void)
 	if (len < 10 || strcmp(path + len - 10, "/unittests") != 0)
 		return 0;
 	path[len - 9] = 0;
-	/* TODO this must be extended with all possible systems... */
-	if (!check_lib(path, ".libs/libtdsodbc.so") && !check_lib(path, ".libs/libtdsodbc.sl")
-	    && !check_lib(path, ".libs/libtdsodbc.dll") && !check_lib(path, ".libs/libtdsodbc.dylib")
-	    && !check_lib(path, "_libs/libtdsodbc.exe"))
+	for (search_p = search_driver; *search_p; ++search_p) {
+		if (check_lib(path, *search_p))
+			break;
+	}
+	if (!*search_p)
 		return 0;
 	strcpy(odbc_driver, path);
 
@@ -605,32 +620,94 @@ odbc_get_sqlchar(ODBC_BUF** buf, SQLWCHAR *s)
 	return out;
 }
 
-#ifndef _WIN32
-int
+typedef union {
+	struct sockaddr sa;
+	struct sockaddr_in sin;
+	char dummy[256];
+} long_sockaddr;
+
+TDS_SYS_SOCKET
 odbc_find_last_socket(void)
 {
-	int max_socket = -1, i;
+	typedef struct {
+		TDS_SYS_SOCKET sock;
+		int local_port;
+		int remote_port;
+	} sock_info;
+	sock_info found[8];
+	unsigned num_found = 0, n;
+	int i;
 
+#ifdef _WIN32
+	for (i = 4; i <= (4096*4); i += 4) {
+#else
 	for (i = 3; i < 1024; ++i) {
+#endif
+		long_sockaddr remote_addr, local_addr;
+		struct sockaddr_in *in;
+		socklen_t remote_addr_len, local_addr_len;
+		sock_info *info;
+
+		/* check if is a socket */
+#ifndef _WIN32
 		struct stat file_stat;
-		union {
-			struct sockaddr sa;
-			char data[256];
-		} u;
-		SOCKLEN_T addrlen;
 
 		if (fstat(i, &file_stat))
 			continue;
 		if ((file_stat.st_mode & S_IFSOCK) != S_IFSOCK)
 			continue;
-		addrlen = sizeof(u);
-		if (tds_getsockname(i, &u.sa, &addrlen) < 0)
-			continue;
-		if (u.sa.sa_family != AF_INET && u.sa.sa_family != AF_INET6)
-			continue;
-		max_socket = i;
-	}
-	return max_socket;
-}
 #endif
+
+		remote_addr_len = sizeof(remote_addr);
+		if (tds_getpeername((TDS_SYS_SOCKET) i, &remote_addr.sa, &remote_addr_len))
+			continue;
+		if (remote_addr.sa.sa_family != AF_INET
+#ifdef AF_INET6
+		    && remote_addr.sa.sa_family != AF_INET6
+#endif
+		    )
+			continue;
+		local_addr_len = sizeof(local_addr);
+		if (tds_getsockname((TDS_SYS_SOCKET) i, &local_addr.sa, &local_addr_len))
+			continue;
+
+		/* save in the array */
+		if (num_found >= 8) {
+			memmove(found, found+1, sizeof(found) - sizeof(found[0]));
+			num_found = 7;
+		}
+		info = &found[num_found++];
+		info->sock = (TDS_SYS_SOCKET) i;
+		info->local_port = -1;
+		info->remote_port = -1;
+
+		/* now check if is a socketpair */
+		in = &remote_addr.sin;
+		if (in->sin_family != AF_INET)
+			continue;
+		if (in->sin_addr.s_addr != htonl(INADDR_LOOPBACK))
+			continue;
+		info->remote_port = ntohs(in->sin_port);
+		in = &local_addr.sin;
+		if (in->sin_family != AF_INET)
+			continue;
+		if (in->sin_addr.s_addr != htonl(INADDR_LOOPBACK))
+			continue;
+		info->local_port = ntohs(in->sin_port);
+		for (n = 0; n < num_found - 1; ++n) {
+			if (found[n].remote_port != info->local_port
+			    || found[n].local_port != info->remote_port)
+				continue;
+			--num_found;
+			memmove(found+n, found+n+1, num_found-n-1);
+			--num_found;
+			break;
+		}
+	}
+
+	/* return last */
+	if (num_found == 0)
+		return INVALID_SOCKET;
+	return found[num_found-1].sock;
+}
 

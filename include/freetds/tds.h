@@ -444,6 +444,9 @@ extern const char *const tds_type_names[256];
 #elif TDS73
 #define TDS_DEFAULT_VERSION	0x703
 #define TDS_DEF_PORT		1433
+#elif TDS74
+#define TDS_DEFAULT_VERSION	0x704
+#define TDS_DEF_PORT		1433
 #else
 #define TDS_DEFAULT_VERSION	0x500
 #define TDS_DEF_PORT		4000
@@ -534,6 +537,7 @@ typedef struct tds_login
 	DSTR app_name;
 	DSTR user_name;	    	/**< account for login */
 	DSTR password;	    	/**< password of account login */
+	DSTR new_password;	    	/**< new password to set (TDS 7.2+) */
 
 	DSTR library;	/* Ct-Library, DB-Library,  TDS-Library or ODBC */
 	TDS_TINYINT encryption_level;
@@ -560,6 +564,7 @@ typedef struct tds_login
 	unsigned int use_lanman:1;
 	unsigned int mars:1;
 	unsigned int use_utf16:1;
+	unsigned int use_new_password:1;
 	unsigned int valid_configuration:1;
 	unsigned int check_ssl_hostname:1;
 } TDSLOGIN;
@@ -1539,6 +1544,7 @@ int tds_capability_enabled(const TDS_CAPABILITY_TYPE *cap, unsigned cap_num)
 #define IS_TDS71_PLUS(x) ((x)->tds_version>=0x701)
 #define IS_TDS72_PLUS(x) ((x)->tds_version>=0x702)
 #define IS_TDS73_PLUS(x) ((x)->tds_version>=0x703)
+#define IS_TDS74_PLUS(x) ((x)->tds_version>=0x704)
 
 #define TDS_MAJOR(x) ((x)->tds_version >> 8)
 #define TDS_MINOR(x) ((x)->tds_version & 0xff)

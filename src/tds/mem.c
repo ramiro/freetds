@@ -468,11 +468,16 @@ void
 tds_set_current_results(TDSSOCKET *tds, TDSRESULTINFO *info)
 {
 	tds_detach_results(info);
+	if (tds->current_results)
+		tds->current_results->attached_to = NULL;
 	if (info)
 		info->attached_to = tds;
 	tds->current_results = info;
 }
 
+/**
+ * Detach result info from it current socket
+ */
 void
 tds_detach_results(TDSRESULTINFO *info)
 {
@@ -608,6 +613,8 @@ tds_free_results(TDSRESULTINFO * res_info)
 
 	if (--res_info->ref_count != 0)
 		return;
+
+	tds_detach_results(res_info);
 
 	if (res_info->num_cols && res_info->columns) {
 		for (i = 0; i < res_info->num_cols; i++)
@@ -968,6 +975,7 @@ tds_alloc_login(int use_environment)
 	tds_dstr_init(&login->server_spn);
 	tds_dstr_init(&login->cafile);
 	tds_dstr_init(&login->crlfile);
+	tds_dstr_init(&login->db_filename);
 
 	if (use_environment) {
 		const char *s;
@@ -1020,6 +1028,7 @@ tds_free_login(TDSLOGIN * login)
 	tds_dstr_free(&login->server_spn);
 	tds_dstr_free(&login->cafile);
 	tds_dstr_free(&login->crlfile);
+	tds_dstr_free(&login->db_filename);
 	free(login);
 }
 
@@ -1313,6 +1322,11 @@ tds_connection_remove_socket(TDSCONNECTION *conn, TDSSOCKET *tds)
 void
 tds_free_socket(TDSSOCKET * tds)
 {
+#if ENABLE_EXTRA_CHECKS
+	TDSDYNAMIC *dyn;
+	TDSCURSOR *cur;
+#endif
+
 	if (!tds)
 		return;
 
@@ -1320,6 +1334,18 @@ tds_free_socket(TDSSOCKET * tds)
 	tds_release_cur_dyn(tds);
 	tds_release_cursor(&tds->cur_cursor);
 	tds_detach_results(tds->current_results);
+#if ENABLE_EXTRA_CHECKS
+	for (dyn = tds->conn->dyns; dyn; dyn = dyn->next) {
+		if (dyn->res_info && dyn->res_info->attached_to == tds) {
+			assert(0);
+		}
+	}
+	for (cur = tds->conn->cursors; cur; cur = cur->next) {
+		if (cur->res_info && cur->res_info->attached_to == tds) {
+			assert(0);
+		}
+	}
+#endif
 	tds_free_all_results(tds);
 #if ENABLE_ODBC_MARS
 	tds_cond_destroy(&tds->packet_cond);

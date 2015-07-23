@@ -18,21 +18,6 @@
  * Boston, MA 02111-1307, USA.
  */
 
-/*
- * PROGRAMMER   NAME            CONTACT
- *==============================================================
- * BSB          Brian Bruns     camber@ais.org
- * PAH          Peter Harvey    pharvey@codebydesign.com
- * SMURPH       Steve Murphree  smurph@smcomp.com
- *
- ***************************************************************
- * DATE         PROGRAMMER  CHANGE
- *==============================================================
- *                          Original.
- * 03.FEB.02    PAH         Started adding use of SQLGetPrivateProfileString().
- * 04.FEB.02	PAH         Fixed small error preventing SQLBindParameter from being called
- */
-
 #include <config.h>
 
 #include <stdarg.h>
@@ -2034,13 +2019,7 @@ ODBC_FUNC(SQLDescribeCol, (P(SQLHSTMT,hstmt), P(SQLUSMALLINT,icol), PCHAROUT(Col
 		}
 	}
 	if (pibScale) {
-		if (drec->sql_desc_type == SQL_NUMERIC || drec->sql_desc_type == SQL_DECIMAL
-		    || drec->sql_desc_type == SQL_DATETIME || drec->sql_desc_type == SQL_FLOAT) {
-			*pibScale = drec->sql_desc_scale;
-		} else {
-			/* TODO test setting desc directly, SQLDescribeCol return just descriptor data ?? */
-			*pibScale = 0;
-		}
+		*pibScale = drec->sql_desc_scale;
 	}
 	if (pfNullable) {
 		*pfNullable = drec->sql_desc_nullable;
@@ -3055,30 +3034,23 @@ odbc_populate_ird(TDS_STMT * stmt)
 		goto memory_error;
 
 	for (i = 0; i < num_cols; i++) {
-		int type;
-
 		drec = &ird->records[i];
 		col = res_info->columns[i];
-		type = tds_get_conversion_type(col->column_type, col->column_size);
 		drec->sql_desc_auto_unique_value = col->column_identity ? SQL_TRUE : SQL_FALSE;
 		/* TODO SQL_FALSE ?? */
 		drec->sql_desc_case_sensitive = SQL_TRUE;
-		/* TODO test error ?? */
-		/* TODO handle unsigned flags ! */
-		odbc_set_concise_sql_type(odbc_server_to_sql_type(col), drec, 0);
+
 		/*
 		 * TODO how to handle when in datetime we change precision ?? 
 		 * should we change display size too ??
 		 * is formatting function correct ??
 		 * we should not convert to string with invalid precision!
 		 */
-		drec->sql_desc_display_size =
-			odbc_sql_to_displaysize(drec->sql_desc_concise_type, col);
+		odbc_set_sql_type_info(col, drec, stmt->dbc->env->attr.odbc_version);
+
 		drec->sql_desc_fixed_prec_scale = (col->column_prec && col->column_scale) ? SQL_TRUE : SQL_FALSE;
 		if (!tds_dstr_dup(&drec->sql_desc_label, &col->column_name))
 			goto memory_error;
-
-		odbc_set_sql_type_info(col, drec, stmt->dbc->env->attr.odbc_version);
 
 		if (tds_dstr_isempty(&col->table_column_name)) {
 			if (!tds_dstr_dup(&drec->sql_desc_name, &col->column_name))
@@ -3144,30 +3116,8 @@ odbc_populate_ird(TDS_STMT * stmt)
 		drec->sql_desc_unnamed = tds_dstr_isempty(&drec->sql_desc_name) ? SQL_UNNAMED : SQL_NAMED;
 		/* TODO use is_nullable_type ?? */
 		drec->sql_desc_nullable = col->column_nullable ? SQL_TRUE : SQL_FALSE;
-		if (drec->sql_desc_concise_type == SQL_NUMERIC)
-			drec->sql_desc_num_prec_radix = 10;
-		else
-			drec->sql_desc_num_prec_radix = 0;
 
 		drec->sql_desc_octet_length_ptr = NULL;
-		switch (type) {
-		case SYBDATETIME:
-			drec->sql_desc_precision = 3;
-			drec->sql_desc_scale     = 3;
-			break;
-		case SYBMONEY:
-			drec->sql_desc_precision = 19;
-			drec->sql_desc_scale     = 4;
-			break;
-		case SYBMONEY4:
-			drec->sql_desc_precision = 10;
-			drec->sql_desc_scale     = 4;
-			break;
-		default:
-			drec->sql_desc_precision = col->column_prec;
-			drec->sql_desc_scale     = col->column_scale;
-			break;
-		}
 		/* TODO test timestamp from db, FOR BROWSE query */
 		drec->sql_desc_rowver = SQL_FALSE;
 		/* TODO seem not correct */

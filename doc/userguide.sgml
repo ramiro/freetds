@@ -982,6 +982,14 @@ versions that &freetds; had labeled 8.0 and 9.0 were actually versions 7.1 and 7
 							<entry>servername [<replaceable>section</>] name</entry>
 							<entry>Specifies the name of the default database when connecting to an ASA server.  A TDS 5.0 login packet has a field called <literal>lservname</>.   For most TDS servers, <literal>lservname</> is a user-defined string with no inherent meaning.  ASA servers, however, requires that <literal>lservname</>  contain a valid database name, and sets that as the default database for the connection. &freetds; normally fills <literal>lservname</>  with the [<replaceable>section</>] text..   This entry instead sets the database name independently of the [<replaceable>section</>] name.   </entry>
 							</row>
+
+						<row>
+							<entry><literal>database</></entry>
+							<entry>valid database name</entry>
+							<entry>none</entry>
+							<entry>Specifies the name of the default database.
+This is the name of the database container in the server you are connecting to.</entry>
+							</row>
 						
 						<row>
 							<entry><literal>initial block size</></entry>
@@ -1838,6 +1846,13 @@ Note that is not possible to specify a directory as usually database servers doe
 							<entry>Any valid SPN</entry>
 							<entry>MSSQLSvc/server FQDN:port</entry>
 							<entry>Full server Kerberos SPN.</entry>
+							</row>
+						<row>
+							<entry><literal>AttachDbFilename</></entry>
+							<entry>server filename (mdf/sdf)</entry>
+							<entry>none</entry>
+							<entry>MSSQL allow to attach a database while connecting to a server.
+This setting allow to do it. You should specify <literal>Database</> attribute to set the name of the database that will be used.</entry>
 							</row>
 						<row>
 							<entry><literal>DumpFile</></entry>

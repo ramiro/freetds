@@ -70,7 +70,7 @@ static TDS_INT tds_convert_int4(const TDS_INT* src, int desttype, CONV_RESULT * 
 static TDS_INT tds_convert_uint4(const TDS_UINT * src, int desttype, CONV_RESULT * cr);
 static TDS_INT tds_convert_int8(const TDS_INT8 * src, int desttype, CONV_RESULT * cr);
 static TDS_INT tds_convert_uint8(const TDS_UINT8 * src, int desttype, CONV_RESULT * cr);
-static int string_to_datetime(const char *datestr, int desttype, CONV_RESULT * cr);
+static int string_to_datetime(const char *datestr, TDS_UINT len, int desttype, CONV_RESULT * cr);
 static int is_dd_mon_yyyy(char *t);
 static int store_dd_mon_yyy_date(char *datestr, struct tds_time *t);
 
@@ -525,8 +525,7 @@ tds_convert_char(const TDS_CHAR * src, TDS_UINT srclen, int desttype, CONV_RESUL
 	case SYBMSDATE:
 	case SYBMSDATETIME2:
 	case SYBMSDATETIMEOFFSET:
-		/* FIXME not null terminated */
-		return string_to_datetime(src, desttype, cr);
+		return string_to_datetime(src, srclen, desttype, cr);
 		break;
 	case SYBNUMERIC:
 	case SYBDECIMAL:
@@ -1889,7 +1888,7 @@ tds_convert(const TDSCONTEXT * tds_ctx, int srctype, const TDS_CHAR * src, TDS_U
 }
 
 static int
-string_to_datetime(const char *instr, int desttype, CONV_RESULT * cr)
+string_to_datetime(const char *instr, TDS_UINT len, int desttype, CONV_RESULT * cr)
 {
 	enum states
 	{ GOING_IN_BLIND,
@@ -1917,9 +1916,8 @@ string_to_datetime(const char *instr, int desttype, CONV_RESULT * cr)
 	memset(&t, '\0', sizeof(t));
 	t.tm_mday = 1;
 
-	in = (char *) malloc(strlen(instr) + 1);
+	in = tds_strndup(instr, len);
 	test_alloc(in);
-	strcpy(in, instr);
 
 	tok = strtok_r(in, " ,", &lasts);
 
@@ -2976,6 +2974,8 @@ utf16len(const utf16_t * s)
 }
 #endif
 
+#include "tds_willconvert.h"
+
 /**
  * Test if a conversion is possible
  * @param srctype  source type
@@ -2985,34 +2985,24 @@ utf16len(const utf16_t * s)
 unsigned char
 tds_willconvert(int srctype, int desttype)
 {
-	typedef struct
-	{
-		int srctype;
-		int desttype;
-		int yn;
-	}
-	ANSWER;
-	static const ANSWER answers[] = {
-#	include "tds_willconvert.h"
-	};
-	unsigned int i;
-	const ANSWER *p = NULL;
+	TDS_TINYINT cat_from, cat_to;
+	TDS_UINT yn;
 
 	tdsdump_log(TDS_DBG_FUNC, "tds_willconvert(%d, %d)\n", srctype, desttype);
 
-	for (i = 0; i < TDS_VECTOR_SIZE(answers); i++) {
-		if (srctype == answers[i].srctype && desttype == answers[i].desttype) {
-			tdsdump_log(TDS_DBG_FUNC, "tds_willconvert(%d, %d) returns %s\n", answers[i].srctype, answers[i].desttype,
-				    answers[i].yn? "yes":"no");
-			p =  &answers[i];
-			break;
-		}
-	}
-
-	if (!p)
+	/* they must be from 0 to 255 */
+	if (((srctype|desttype) & ~0xff) != 0)
 		return 0;
-		
-	return p->yn;
+
+	cat_from = type2category[srctype];
+	cat_to   = type2category[desttype];
+	yn = category_conversion[cat_from];
+
+	yn = (yn >> cat_to) & 1;
+
+	tdsdump_log(TDS_DBG_FUNC, "tds_willconvert(%d, %d) returns %s\n",
+		    srctype, desttype, yn? "yes":"no");
+	return yn;
 }
 
 #if 0
@@ -3197,7 +3187,8 @@ string_to_int(const char *buf, const char *pend, TDS_INT * res)
 	for (; p != pend; ++p) {
 		/* check for trailing spaces */
 		if (*p == blank) {
-			while (++p != pend && *p == blank);
+			while (++p != pend && *p == blank)
+				continue;
 			if (p != pend)
 				return TDS_CONVERT_SYNTAX;
 			break;
@@ -3272,7 +3263,8 @@ parse_int8(const char *buf, const char *pend, TDS_UINT8 * res, int * p_sign)
 	for (; p != pend; ++p) {
 		/* check for trailing spaces */
 		if (*p == blank) {
-			while (p != pend && *++p == blank);
+			while (++p != pend && *p == blank)
+				continue;
 			if (p != pend)
 				return TDS_CONVERT_SYNTAX;
 			break;
@@ -3284,6 +3276,8 @@ parse_int8(const char *buf, const char *pend, TDS_UINT8 * res, int * p_sign)
 
 		/* add a digit to number and check for overflow */
 		prev = num;
+		if (num > (((TDS_UINT8) 1u) << 63) / 5u)
+			return TDS_CONVERT_OVERFLOW;
 		num = num * 10u + (*p - '0');
 		if (num < prev)
 			return TDS_CONVERT_OVERFLOW;

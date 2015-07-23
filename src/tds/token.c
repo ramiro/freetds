@@ -53,7 +53,7 @@ static TDSRET tds_process_msg(TDSSOCKET * tds, int marker);
 static TDSRET tds_process_compute_result(TDSSOCKET * tds);
 static TDSRET tds_process_compute_names(TDSSOCKET * tds);
 static TDSRET tds7_process_compute_result(TDSSOCKET * tds);
-static TDSRET tds_process_result(TDSSOCKET * tds);
+static TDSRET tds5_process_result(TDSSOCKET * tds);
 static TDSRET tds_process_col_name(TDSSOCKET * tds);
 static TDSRET tds_process_col_fmt(TDSSOCKET * tds);
 static TDSRET tds_process_tabname(TDSSOCKET *tds);
@@ -71,7 +71,7 @@ static TDSRET tds_process_env_chg(TDSSOCKET * tds);
 static TDSRET tds_process_param_result_tokens(TDSSOCKET * tds);
 static TDSRET tds_process_params_result_token(TDSSOCKET * tds);
 static TDSRET tds_process_dyn_result(TDSSOCKET * tds);
-static TDSRET tds5_process_result(TDSSOCKET * tds);
+static TDSRET tds5_process_result2(TDSSOCKET * tds);
 static TDSRET tds5_process_dyn_result2(TDSSOCKET * tds);
 static TDSRET tds_process_default_tokens(TDSSOCKET * tds, int marker);
 static TDSRET tds5_process_optioncmd(TDSSOCKET * tds);
@@ -195,10 +195,10 @@ tds_process_default_tokens(TDSSOCKET * tds, int marker)
 		return tds5_process_optioncmd(tds);
 		break;
 	case TDS_RESULT_TOKEN:
-		return tds_process_result(tds);
+		return tds5_process_result(tds);
 		break;
 	case TDS_ROWFMT2_TOKEN:
-		return tds5_process_result(tds);
+		return tds5_process_result2(tds);
 		break;
 	case TDS_COLNAME_TOKEN:
 		return tds_process_col_name(tds);
@@ -539,14 +539,14 @@ tds_process_tokens(TDSSOCKET *tds, TDS_INT *result_type, int *done_flags, unsign
 	unsigned return_flag = 0;
 
 /** \cond HIDDEN_SYMBOLS */
-#define SET_RETURN(ret, f) \
+#define SET_RETURN(ret, f) do { \
 	*result_type = ret; \
 	return_flag = TDS_RETURN_##f | TDS_STOPAT_##f; \
 	if (flag & TDS_STOPAT_##f) {\
 		tds_unget_byte(tds); \
 		tdsdump_log(TDS_DBG_FUNC, "tds_process_tokens::SET_RETURN stopping on current token\n"); \
-		break; \
-	}
+		goto set_return_exit; \
+	} } while(0)
 /** \endcond */
 
 	CHECK_TDS_EXTRA(tds);
@@ -576,39 +576,26 @@ tds_process_tokens(TDSSOCKET *tds, TDS_INT *result_type, int *done_flags, unsign
 			 * from sql server we don't want to pass back the
 			 * TDS_ROWFMT_RESULT to the calling API
 			 */
-
-			if (tds->current_op == TDS_OP_CURSORFETCH) {
-				rc = tds7_process_result(tds);
-				if (TDS_FAILED(rc))
-					break;
-				marker = tds_get_byte(tds);
-				if (marker != TDS_TABNAME_TOKEN)
-					tds_unget_byte(tds);
-				else
-					rc = tds_process_tabname(tds);
-			} else {
+			if (tds->current_op != TDS_OP_CURSORFETCH)
 				SET_RETURN(TDS_ROWFMT_RESULT, ROWFMT);
 
-				rc = tds7_process_result(tds);
-				if (TDS_FAILED(rc))
-					break;
-				/* handle browse information (if presents) */
-				marker = tds_get_byte(tds);
-				if (marker != TDS_TABNAME_TOKEN) {
-					tds_unget_byte(tds);
-					rc = TDS_SUCCESS;
-					break;
-				}
+			rc = tds7_process_result(tds);
+			if (TDS_FAILED(rc))
+				break;
+			/* handle browse information (if present) */
+			marker = tds_get_byte(tds);
+			if (marker != TDS_TABNAME_TOKEN)
+				tds_unget_byte(tds);
+			else
 				rc = tds_process_tabname(tds);
-			}
 			break;
 		case TDS_RESULT_TOKEN:
 			SET_RETURN(TDS_ROWFMT_RESULT, ROWFMT);
-			rc = tds_process_result(tds);
+			rc = tds5_process_result(tds);
 			break;
 		case TDS_ROWFMT2_TOKEN:
 			SET_RETURN(TDS_ROWFMT_RESULT, ROWFMT);
-			rc = tds5_process_result(tds);
+			rc = tds5_process_result2(tds);
 			break;
 		case TDS_COLNAME_TOKEN:
 			rc = tds_process_col_name(tds);
@@ -616,13 +603,14 @@ tds_process_tokens(TDSSOCKET *tds, TDS_INT *result_type, int *done_flags, unsign
 		case TDS_COLFMT_TOKEN:
 			SET_RETURN(TDS_ROWFMT_RESULT, ROWFMT);
 			rc = tds_process_col_fmt(tds);
+			if (TDS_FAILED(rc))
+				break;
 			/* handle browse information (if present) */
 			marker = tds_get_byte(tds);
-			if (marker != TDS_TABNAME_TOKEN) {
+			if (marker != TDS_TABNAME_TOKEN)
 				tds_unget_byte(tds);
-				break;
-			}
-			rc = tds_process_tabname(tds);
+			else
+				rc = tds_process_tabname(tds);
 			break;
 		case TDS_PARAM_TOKEN:
 			tds_unget_byte(tds);
@@ -794,6 +782,12 @@ tds_process_tokens(TDSSOCKET *tds, TDS_INT *result_type, int *done_flags, unsign
 				*result_type = TDS_NO_MORE_RESULTS;
 				rc = TDS_NO_MORE_RESULTS;
 				break;
+			case TDS_OP_UNPREPARE:
+				if (done_flags && (*done_flags & TDS_DONE_ERROR) == 0)
+					tds_dynamic_deallocated(tds->conn, tds->cur_dyn);
+				*result_type = TDS_NO_MORE_RESULTS;
+				rc = TDS_NO_MORE_RESULTS;
+				break;
 			case TDS_OP_CURSOR:
 			case TDS_OP_CURSORPREPARE:
 			case TDS_OP_CURSOREXECUTE:
@@ -802,7 +796,6 @@ tds_process_tokens(TDSSOCKET *tds, TDS_INT *result_type, int *done_flags, unsign
 			case TDS_OP_CURSORFETCH:
 			case TDS_OP_CURSOROPTION:
 			case TDS_OP_PREPEXECRPC:
-			case TDS_OP_UNPREPARE:
 				*result_type = TDS_NO_MORE_RESULTS;
 				rc = TDS_NO_MORE_RESULTS;
 				break;
@@ -841,6 +834,7 @@ tds_process_tokens(TDSSOCKET *tds, TDS_INT *result_type, int *done_flags, unsign
 			break;
 		}
 
+	set_return_exit:
 		if (TDS_FAILED(rc)) {
 			tds_set_state(tds, TDS_PENDING);
 			return rc;
@@ -1720,13 +1714,13 @@ tds_get_data_info(TDSSOCKET * tds, TDSCOLUMN * curcol, int is_param)
 }
 
 /**
- * tds_process_result() is the TDS 5.0 result set processing routine.  It 
- * is responsible for populating the tds->res_info structure.
+ * tds5_process_result() is the TDS 5.0 result set processing routine.
+ * It is responsible for populating the tds->res_info structure.
  * This is a TDS 5.0 only function
  * \tds
  */
 static TDSRET
-tds_process_result(TDSSOCKET * tds)
+tds5_process_result(TDSSOCKET * tds)
 {
 	unsigned int col, num_cols;
 	TDSCOLUMN *curcol;
@@ -1767,13 +1761,13 @@ tds_process_result(TDSSOCKET * tds)
 }
 
 /**
- * tds5_process_result() is the new TDS 5.0 result set processing routine.  
+ * tds5_process_result2() is the new TDS 5.0 result set processing routine.
  * It is responsible for populating the tds->res_info structure.
  * This is a TDS 5.0 only function
  * \tds
  */
 static TDSRET
-tds5_process_result(TDSSOCKET * tds)
+tds5_process_result2(TDSSOCKET * tds)
 {
 	unsigned int colnamelen;
 	TDS_USMALLINT col, num_cols;
@@ -1782,7 +1776,7 @@ tds5_process_result(TDSSOCKET * tds)
 
 	CHECK_TDS_EXTRA(tds);
 
-	tdsdump_log(TDS_DBG_INFO1, "tds5_process_result\n");
+	tdsdump_log(TDS_DBG_INFO1, "tds5_process_result2\n");
 
 	/*
 	 * free previous resultset

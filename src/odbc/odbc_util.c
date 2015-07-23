@@ -54,17 +54,6 @@ static char *odbc_mb2utf(TDS_DBC *dbc, const char *s, int len);
 static char *odbc_wide2utf(const SQLWCHAR *s, int len);
 #endif
 
-static char *
-odbc_strndup(const char *s, int len)
-{
-	char *out = (char*) malloc(len+1);
-	if (!out)
-		return NULL;
-	memcpy(out, s, len);
-	out[len] = 0;
-	return out;
-}
-
 static int
 odbc_set_stmt(TDS_STMT * stmt, char **dest, const ODBC_CHAR *sql, int sql_len _WIDE)
 {
@@ -102,7 +91,7 @@ odbc_set_stmt(TDS_STMT * stmt, char **dest, const ODBC_CHAR *sql, int sql_len _W
 #ifdef ENABLE_ODBC_WIDE
 	*dest = p = wide ? odbc_wide2utf(sql->wide, sql_len) : odbc_mb2utf(stmt->dbc, sql->mb, sql_len);
 #else
-	*dest = p = odbc_strndup((const char*) sql, sql_len);
+	*dest = p = tds_strndup((const char*) sql, sql_len);
 #endif
 	if (!p)
 		return SQL_ERROR;
@@ -257,7 +246,7 @@ odbc_mb2utf(TDS_DBC *dbc, const char *s, int len)
 		return odbc_iso2utf(s, len);
 
 	if (char_conv->flags == TDS_ENCODING_MEMCPY)
-		return odbc_strndup(s, len);
+		return tds_strndup(s, len);
 
 	il = len;
 
@@ -330,14 +319,15 @@ odbc_set_string_flag(TDS_DBC *dbc, SQLPOINTER buffer, SQLINTEGER cbBuffer, void 
 	if (len < 0)
 		len = strlen(s);
 
+	if (cbBuffer < 0)
+		cbBuffer = 0;
+
 #ifdef ENABLE_ODBC_WIDE
 	if ((flag & 1) != 0) {
 		/* wide characters */
 		const unsigned char *p = (const unsigned char*) s;
 		SQLWCHAR *dest = (SQLWCHAR*) buffer;
 
-		if (cbBuffer < 0)
-			cbBuffer = 0;
 		if (flag&0x20)
 			cbBuffer /= SIZEOF_SQLWCHAR;
 #ifndef NDEBUG
@@ -392,7 +382,6 @@ odbc_set_string_flag(TDS_DBC *dbc, SQLPOINTER buffer, SQLINTEGER cbBuffer, void 
 		const unsigned char *p = (const unsigned char*) s;
 		unsigned char *dest = (unsigned char*) buffer;
 
-		assert(cbBuffer >= 0);
 #ifndef NDEBUG
 		initial_size = cbBuffer;
 #endif
@@ -486,7 +475,7 @@ odbc_set_string_flag(TDS_DBC *dbc, SQLPOINTER buffer, SQLINTEGER cbBuffer, void 
 		}
 		if (out_len >= cbBuffer && result != SQL_ERROR)
 			result = SQL_SUCCESS_WITH_INFO;
-		if (buffer && cbBuffer >= 0)
+		if (buffer && cbBuffer > 0)
 			((char *) buffer)[cbBuffer-1 < out_len ? cbBuffer-1:out_len] = 0;
 	}
 #else
@@ -713,100 +702,6 @@ odbc_c_to_server_type(int c_type)
 	return 0;
 }
 
-SQLINTEGER
-odbc_sql_to_displaysize(int sqltype, TDSCOLUMN *col)
-{
-	SQLINTEGER size = 0;
-
-	switch (sqltype) {
-	case SQL_VARCHAR:
-		if (is_blob_col(col))
-			return SQL_SS_LENGTH_UNLIMITED;
-	case SQL_CHAR:
-	case SQL_LONGVARCHAR:
-		size = col->on_server.column_size;
-		break;
-	/* FIXME sure ?? *2 or not ?? */
-	case SQL_WVARCHAR:
-		if (is_blob_col(col))
-			return SQL_SS_LENGTH_UNLIMITED;
-	case SQL_WCHAR:
-	case SQL_WLONGVARCHAR:
-		size = col->on_server.column_size / 2;
-		break;
-	case SQL_VARBINARY:
-		if (is_blob_col(col))
-			return SQL_SS_LENGTH_UNLIMITED;
-	case SQL_BINARY:
-	case SQL_LONGVARBINARY:
-		size = col->column_size * 2;
-		break;
-	case SQL_BIGINT:
-		size = 20;
-		break;
-	case SQL_INTEGER:
-		size = 11;	/* -1000000000 */
-		break;
-	case SQL_SMALLINT:
-		size = 6;	/* -10000 */
-		break;
-	case SQL_BIT:
-		size = 1;
-		break;
-	case SQL_TINYINT:
-		size = 3;	/* 255 */
-		break;
-	case SQL_DECIMAL:
-	case SQL_NUMERIC:
-		/* TODO check money format returned by propretary ODBC, scale == 4 but we use 2 digits */
-		if (col->column_type == SYBMONEY || (col->column_type == SYBMONEYN && col->column_size == 8))
-			size = 21;
-		else if (col->column_type == SYBMONEY4 || (col->column_type == SYBMONEYN && col->column_size == 4))
-			size = 12;
-		else
-			size = col->column_prec + 2;
-		break;
-	case SQL_DATE:
-	case SQL_TYPE_DATE:
-		/* FIXME check always yyyy-mm-dd ?? */
-		size = 19;
-		break;
-	case SQL_TIME:
-	case SQL_TYPE_TIME:
-		/* FIXME check always hh:mm:ss[.fff] */
-		size = 19;
-		break;
-	case SQL_TYPE_TIMESTAMP:
-	case SQL_TIMESTAMP:
-		/* TODO dependent on precision (decimal second digits) */
-		/* we always format using yyyy-mm-dd hh:mm:ss[.fff], see convert_tds2sql.c */
-		size = 19;
-		if (col->column_type == SYBDATETIME || (col->column_type == SYBDATETIMN && col->column_size == 8))
-			size = 23;
-		break;
-	case SQL_FLOAT:
-	case SQL_REAL:
-	case SQL_DOUBLE:
-		/* TODO check REAL/FLOAT format */
-		if (col->column_type == SYBREAL || (col->column_type == SYBFLTN && col->column_size == 4))
-			size = 14;
-		else 
-			size = 24;	/* FIXME -- what should the correct size be? */
-		break;
-#ifdef SQL_GUID
-	case SQL_GUID:
-		size = 36;
-		break;
-#endif
-	default:
-		/* FIXME TODO finish, should support ALL types (interval, binary) */
-		size = 40;
-		tdsdump_log(TDS_DBG_INFO1, "odbc_sql_to_displaysize: unknown sql type %d\n", (int) sqltype);
-		break;
-	}
-	return size;
-}
-
 int
 odbc_sql_to_c_type_default(int sql_type)
 {
@@ -881,9 +776,19 @@ odbc_sql_to_server_type(TDSCONNECTION * conn, int sql_type, int sql_unsigned)
 			return XSYBNVARCHAR;
 	case SQL_VARCHAR:
 		return SYBVARCHAR;
+	case SQL_SS_VARIANT:
+		if (IS_TDS71_PLUS(conn))
+			return SYBVARIANT;
+		if (IS_TDS7_PLUS(conn))
+			return XSYBNVARCHAR;
+		return SYBVARCHAR;
+	case SQL_SS_XML:
+		if (IS_TDS72_PLUS(conn))
+			return SYBMSXML;
 	case SQL_WLONGVARCHAR:
 		if (IS_TDS7_PLUS(conn))
 			return SYBNTEXT;
+		/* fall thought */
 	case SQL_LONGVARCHAR:
 		return SYBTEXT;
 	case SQL_DECIMAL:
@@ -1042,6 +947,8 @@ odbc_get_param_len(const struct _drecord *drec_axd, const struct _drecord *drec_
 \
 	TYPE_NORMAL(SQL_SS_TIMESTAMPOFFSET) \
 	TYPE_NORMAL(SQL_SS_TIME2) \
+	TYPE_NORMAL(SQL_SS_XML) \
+	TYPE_NORMAL(SQL_SS_VARIANT) \
 	TYPE_NORMAL(SQL_TYPE_DATE) \
 \
 	TYPE_VERBOSE_START(SQL_DATETIME) \

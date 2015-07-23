@@ -1,6 +1,7 @@
 #include "common.h"
 #include <ctype.h>
 #include "parser.h"
+#include <freetds/odbc.h>
 
 /*
  * SQLDescribeCol test for precision
@@ -87,6 +88,12 @@ static struct lookup_int sql_types[] = {
 	TYPE(SQL_TYPE_TIME),
 	TYPE(SQL_TYPE_TIMESTAMP),
 	TYPE(SQL_DATETIME),
+	TYPE(SQL_SS_VARIANT),
+	TYPE(SQL_SS_UDT),
+	TYPE(SQL_SS_XML),
+	TYPE(SQL_SS_TABLE),
+	TYPE(SQL_SS_TIME2),
+	TYPE(SQL_SS_TIMESTAMPOFFSET),
 #undef TYPE
 	{ NULL, 0 }
 };
@@ -176,11 +183,18 @@ check_attr_ird(ATTR_PARAMS)
 		odbc_fatal(": failure not expected\n");
 	/* SQL_DESC_LENGTH is the same of SQLDescribeCol len */
 	if (attr->value == SQL_DESC_LENGTH) {
-		SQLSMALLINT si;
-		SQLULEN li;
-		CHKDescribeCol(1, NULL, 0, NULL, &si, &li, &si, &si, "S");
-		if (i != li)
-			odbc_fatal(": attr %s SQLDescribeCol len %ld != SQLColAttribute len %ld\n", attr->name, (long) li, (long) i);
+		SQLSMALLINT scale, si;
+		SQLULEN prec;
+		CHKDescribeCol(1, NULL, 0, NULL, &si, &prec, &scale, &si, "S");
+		if (i != prec)
+			odbc_fatal(": attr %s SQLDescribeCol len %ld != SQLColAttribute len %ld\n", attr->name, (long) prec, (long) i);
+	}
+	if (attr->value == SQL_DESC_SCALE) {
+		SQLSMALLINT scale, si;
+		SQLULEN prec;
+		CHKDescribeCol(1, NULL, 0, NULL, &si, &prec, &scale, &si, "S");
+		if (i != scale)
+			odbc_fatal(": attr %s SQLDescribeCol scale %ld != SQLColAttribute len %ld\n", attr->name, (long) scale, (long) i);
 	}
 	if (i != lookup(expected_value, attr->lookup)) {
 		g_result = 1;

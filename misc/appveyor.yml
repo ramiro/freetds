@@ -26,7 +26,6 @@ environment:
     # /E:ON and /V:ON options are not enabled in the batch script intepreter
     # See: http://stackoverflow.com/a/13751649/163740
     WITH_COMPILER: "cmd /E:ON /V:ON /C ..\\misc\\run_with_compiler.cmd"
-    OPENSSL_VER: 1_0_2d
     WIN_ICONV_VER: 0.0.6
 
   matrix:
@@ -50,6 +49,12 @@ configuration:
   - release
 
 install:
+  # xidel (xpath command line tool)
+  - appveyor DownloadFile "http://nbtelecom.dl.sourceforge.net/project/videlibri/Xidel/Xidel 0.9/xidel-0.9.win32.zip"
+  - 7z x xidel-0.9.win32.zip xidel.exe
+  # detect version of Windows OpenSSL binaries published by the Shining Light Productions crew
+  - xidel https://slproweb.com/products/Win32OpenSSL.html --extract "(//td/a[starts-with(@href, '/download') and starts-with(text(), 'Win32 OpenSSL') and ends-with(text(), 'Light')])[1]/translate(substring-before(substring-after(text(), 'Win32 OpenSSL v'), ' Light'), '.', '_')" > openssl_ver.txt
+  - set /P OPENSSL_VER=< openssl_ver.txt
   # OpenSSL
   - appveyor DownloadFile https://slproweb.com/download/%PLAT%OpenSSL-%OPENSSL_VER%.exe
   - "%PLAT%OpenSSL-%OPENSSL_VER%.exe /SP- /SILENT /SUPPRESSMSGBOXES /NORESTART /DIR=\"C:\\OpenSSL\""
@@ -85,7 +90,7 @@ test_script:
   - cd build
   - echo [global]> freetds.conf.local
   - echo port = 1433>> freetds.conf.local
-  - echo tds version = 7.1>> freetds.conf.local
+  - echo tds version = 7.3>> freetds.conf.local
   - echo [local]>> freetds.conf.local
   - echo host = 127.0.0.1>> freetds.conf.local
   # Create PWD
@@ -96,19 +101,13 @@ test_script:
   - set FREETDSCONF=%CD%\freetds.conf.local
   - set TDSDUMP=%CD%\conndump
   - set TDSDUMPCONFIG=%CD%\confdump
+  - set TDS_SKIP_SUCCESS=1
   # Add dirs of our just built DLLs to PATH envvar so everything works
   - set PATH=%CD%\src\ctlib;%CD%\src\dblib;%PATH%
   # register ODBC driver
-  - copy src\odbc\tdsodbc.dll %WINDIR%\system32
-  #- regsvr32 /s %WINDIR%\system32\tdsodbc.dll
-  - C:\Windows\SysWOW64\ODBCCONF.exe INSTALLDRIVER "FreeTDS|Driver=tdsodbc.dll|Setup=tdsodbc.dll||"
-  - C:\Windows\SysWOW64\ODBCCONF.exe CONFIGDRIVER "FreeTDS" "APILevel=1"
-  - C:\Windows\SysWOW64\ODBCCONF.exe CONFIGDRIVER "FreeTDS" "ConnectFunctions=YYY"
-  - C:\Windows\SysWOW64\ODBCCONF.exe CONFIGDRIVER "FreeTDS" "DriverODBCVer=02.50"
-  - C:\Windows\SysWOW64\ODBCCONF.exe CONFIGDRIVER "FreeTDS" "FileUsage=0"
-  - C:\Windows\SysWOW64\ODBCCONF.exe CONFIGDRIVER "FreeTDS" "CPTimeout=60"
+  - "%WINDIR%\\SysWOW64\\regsvr32 /s src\\odbc\\tdsodbc.dll || %WINDIR%\\system32\\regsvr32 /s src\\odbc\\tdsodbc.dll"
   # Build and run tests
-  - "%WITH_COMPILER% nmake check || cmd /c \"exit /b 0\""
+  - "%WITH_COMPILER% nmake check"
   - cd ..
 
 after_test:
@@ -123,9 +122,9 @@ after_test:
   - copy src\ctlib\libct.lib %DESTDIR%\static\
   - copy src\tds\tds.lib %DESTDIR%\static\
   - mkdir %DESTDIR%\include
+  - cp include/tds_sysdep_public.h ./%DESTDIR%/include/
   - cd ..\include
-  #- cp sqlfront.h sybdb.h sybfront.h tds_sysdep_public.h ../%DESTDIR%/include/
-  - cp sqlfront.h sybdb.h sybfront.h ../build/%DESTDIR%/include/
+  - cp bkpublic.h cspublic.h cstypes.h ctpublic.h sqldb.h sqlfront.h sybdb.h syberror.h sybfront.h ../build/%DESTDIR%/include/
   - cd ..\build
   - mkdir %DESTDIR%\dynamic
   - copy src\ctlib\ct.dll %DESTDIR%\dynamic\

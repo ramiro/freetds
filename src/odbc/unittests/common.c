@@ -15,7 +15,7 @@
 #include <netinet/in.h>
 #endif /* HAVE_NETINET_IN_H */
 
-#ifdef UNIXODBC
+#if defined(UNIXODBC) || defined(_WIN32)
 #include <odbcinst.h>
 #endif
 
@@ -24,9 +24,6 @@
 #else
 #define TDS_SDIR_SEPARATOR "\\"
 #endif
-
-static char software_version[] = "$Id: common.c,v 1.63 2012-03-11 13:10:58 freddy77 Exp $";
-static void *no_unused_var_warn[] = { software_version, no_unused_var_warn };
 
 HENV odbc_env;
 HDBC odbc_conn;
@@ -80,6 +77,7 @@ static const char *const search_driver[] = {
 	"debug/tdsodbc.dll",
 	"release/tdsodbc.dll",
 	"libtdsodbc.so",
+	"tdsodbc.dll",
 	NULL
 };
 
@@ -734,6 +732,69 @@ typedef union {
 	char dummy[256];
 } long_sockaddr;
 
+static int
+fd_is_socket(int fd)
+{
+	long_sockaddr addr;
+	socklen_t addr_len;
+
+#ifndef _WIN32
+	struct stat file_stat;
+
+	if (fstat(fd, &file_stat))
+		return 0;
+	if ((file_stat.st_mode & S_IFSOCK) != S_IFSOCK)
+		return 0;
+#endif
+
+	addr_len = sizeof(addr);
+	if (tds_getpeername((TDS_SYS_SOCKET) fd, &addr.sa, &addr_len))
+		return 0;
+
+	addr_len = sizeof(addr);
+	if (tds_getsockname((TDS_SYS_SOCKET) fd, &addr.sa, &addr_len))
+		return 0;
+
+	return 1;
+}
+
+enum {NUM_FDS = 4096*4};
+static unsigned char fd_bitmask[NUM_FDS / 8];
+
+static int
+mark_fd(int fd)
+{
+	unsigned shift;
+	unsigned char mask;
+
+	if (fd < 0 || fd >= NUM_FDS)
+		return 0;
+
+	shift = fd & 7;
+	mask = fd_bitmask[fd >> 3];
+	fd_bitmask[fd >> 3] = mask | (1 << shift);
+
+	return (mask >> shift) & 1;
+}
+
+#ifdef _WIN32
+#define FOR_ALL_SOCKETS(i) for (i = 4; i <= (4096*4); i += 4)
+#else
+#define FOR_ALL_SOCKETS(i) for (i = 3; i < 1024; ++i)
+#endif
+
+void
+odbc_mark_sockets_opened(void)
+{
+	int i;
+
+	memset(fd_bitmask, 0, sizeof(fd_bitmask));
+	FOR_ALL_SOCKETS(i) {
+		if (fd_is_socket(i))
+			mark_fd(i);
+	}
+}
+
 TDS_SYS_SOCKET
 odbc_find_last_socket(void)
 {
@@ -746,25 +807,17 @@ odbc_find_last_socket(void)
 	unsigned num_found = 0, n;
 	int i;
 
-#ifdef _WIN32
-	for (i = 4; i <= (4096*4); i += 4) {
-#else
-	for (i = 3; i < 1024; ++i) {
-#endif
+	FOR_ALL_SOCKETS(i) {
 		long_sockaddr remote_addr, local_addr;
 		struct sockaddr_in *in;
 		socklen_t remote_addr_len, local_addr_len;
 		sock_info *info;
 
 		/* check if is a socket */
-#ifndef _WIN32
-		struct stat file_stat;
-
-		if (fstat(i, &file_stat))
+		if (!fd_is_socket(i))
 			continue;
-		if ((file_stat.st_mode & S_IFSOCK) != S_IFSOCK)
+		if (mark_fd(i))
 			continue;
-#endif
 
 		remote_addr_len = sizeof(remote_addr);
 		if (tds_getpeername((TDS_SYS_SOCKET) i, &remote_addr.sa, &remote_addr_len))

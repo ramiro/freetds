@@ -68,6 +68,7 @@ include(CheckIncludeFile)
 include(CheckIncludeFiles)
 include(CheckTypeSize)
 include(CheckFunctionExists)
+include(CheckSymbolExists)
 include(CheckLibraryExists)
 include(CheckStructHasMember)
 include(CheckPrototypeDefinition)
@@ -225,7 +226,7 @@ SELECT_TYPE(tds_sysdep_intptr_type ${SIZEOF_VOID_P} "short;int;long;__int64" "No
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 set(FUNCS asprintf vasprintf strtok_r readpassphrase
 	strlcpy strlcat basename getopt strsep
-	vsnprintf _vsnprintf snprintf _snprintf _vscprintf gettimeofday
+	snprintf _snprintf _vscprintf gettimeofday
 	nl_langinfo locale_charset setenv putenv
 	getuid getpwuid getpwuid_r fstat alarm fork
 	gethrtime localtime_r setitimer
@@ -240,6 +241,19 @@ foreach(func ${FUNCS})
 	string(TOUPPER "HAVE_${func}" var)
 	check_function_exists(${func} ${var})
 	set(HAVE_GETADDRINFO 1 CACHE INTERNAL "")
+	config_write("/* Define to 1 if you have function <${func}>. */\n")
+	config_write("#cmakedefine ${var} 1\n\n")
+endforeach(func)
+
+set(VSNPRINTF_FUNCS vsnprintf _vsnprintf)
+
+foreach(func ${VSNPRINTF_FUNCS})
+	string(TOUPPER "HAVE_${func}" var)
+	check_function_exists(${func} ${var})
+	if(NOT ${var})
+		unset(${var} CACHE)
+		check_symbol_exists(${func} stdio.h var)
+	endif()
 	config_write("/* Define to 1 if you have function <${func}>. */\n")
 	config_write("#cmakedefine ${var} 1\n\n")
 endforeach(func)

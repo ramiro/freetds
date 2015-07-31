@@ -70,12 +70,8 @@ build_script:
   # build FreeTDS
   - mkdir build
   - cd build
-  - set INCLUDE
-  - set LIB
   - "%WITH_COMPILER% cmake -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release .."
   - "%WITH_COMPILER% nmake"
-  - "%WITH_COMPILER% set INCLUDE"
-  - "%WITH_COMPILER% set LIB"
   - src\apps\tsql.exe -C
   - cd ..
 

@@ -31,6 +31,8 @@ IF "%WIDTH%"=="64" (
         "%WIN_SDK_ROOT%\%WINDOWS_SDK_VERSION%\Setup\WindowsSdkVer.exe" -q -version:%WINDOWS_SDK_VERSION%
         "%WIN_SDK_ROOT%\%WINDOWS_SDK_VERSION%\Bin\SetEnv.cmd" /x64 /release
     )
+    set INCLUDE
+    set LIB
     ECHO Executing: %COMMAND_TO_RUN%
     call %COMMAND_TO_RUN% || EXIT 1
 ) ELSE (
@@ -45,6 +47,8 @@ IF "%WIDTH%"=="64" (
         ECHO Using MSVC 2015 build environment for 32 bit architecture
         "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
     )
+    set INCLUDE
+    set LIB
     ECHO Executing: %COMMAND_TO_RUN%
     call %COMMAND_TO_RUN% || EXIT 1
 )

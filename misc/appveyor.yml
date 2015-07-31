@@ -41,6 +41,7 @@ configuration:
   - release
 
 install:
+  - cmake --version
   # xidel (xpath command line tool)
   - appveyor DownloadFile "http://nbtelecom.dl.sourceforge.net/project/videlibri/Xidel/Xidel 0.9/xidel-0.9.win32.zip"
   - 7z x xidel-0.9.win32.zip xidel.exe

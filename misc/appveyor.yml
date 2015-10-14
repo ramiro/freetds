@@ -140,3 +140,14 @@ after_test:
 
 artifacts:
   - path: vs*.zip
+    name: win-binaries
+
+deploy:
+  - provider: GitHub
+    description: FreeTDS $(APPVEYOR_REPO_TAG_NAME) Windows binaries for pymssql.
+    artifact: win-binaries
+    draft: true
+    auth_token:
+      secure: 0HZDIXKuYdXSLlN7+o9OCBPPh+p+GZ0QJVxLsXFeZWkKAzEi4ELUcnmbekKWIYQO
+    on:
+      appveyor_repo_tag: true

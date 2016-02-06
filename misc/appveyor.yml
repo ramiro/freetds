@@ -23,26 +23,32 @@ environment:
 
   matrix:
   - WIDTH: 32
+    ARCH: x86
     VS_VERSION: "2008"
     TDSVER: "7.0"
 
   - WIDTH: 64
+    ARCH: x86_64
     VS_VERSION: "2008"
     TDSVER: "7.1"
 
   - WIDTH: 32
+    ARCH: x86
     VS_VERSION: "2010"
     TDSVER: "7.2"
 
   - WIDTH: 64
+    ARCH: x86_64
     VS_VERSION: "2010"
     TDSVER: "7.3"
 
   - WIDTH: 32
+    ARCH: x86
     VS_VERSION: "2015"
     TDSVER: "7.2"
 
   - WIDTH: 64
+    ARCH: x86_64
     VS_VERSION: "2015"
     TDSVER: "7.3"
 
@@ -76,7 +82,9 @@ install:
 build_script:
   # build FreeTDS
   # Add relevant OpenSSL DLLs dir to PATH envvar
-  - ps: if ($env:WIDTH -eq 32) { $env:PATH = $env:APPVEYOR_BUILD_FOLDER + "\openssl\bin;" + $env:PATH } else { $env:PATH = $env:APPVEYOR_BUILD_FOLDER + "\openssl\bin64;" + $env:PATH }
+  - ps: |
+      if ($env:WIDTH -eq 32) { $env:PATH = $env:APPVEYOR_BUILD_FOLDER + "\openssl\bin;" + $env:PATH }
+      else { $env:PATH = $env:APPVEYOR_BUILD_FOLDER + "\openssl\bin64;" + $env:PATH }
   - mkdir build
   - cd build
   - "%WITH_COMPILER% cmake -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR=openssl .."
@@ -120,27 +128,29 @@ after_test:
   - type %CD%\build\conndump
   # Create zipball artifact
   - cd build
-  - set DESTDIR=vs%VS_VERSION%_%WIDTH%
+  - ps: |
+      if ($env:APPVEYOR_REPO_TAG -eq "True") { $env:DESTDIR = "freetds-" + $env:APPVEYOR_REPO_TAG_NAME + "-win-" + $env:ARCH + "-vs" + $env:VS_VERSION }
+      else { $env:DESTDIR = "freetds-win-" + $env:ARCH + "-vs" + $env:VS_VERSION }
   - mkdir %DESTDIR%
-  - mkdir %DESTDIR%\static
-  - copy src\dblib\db-lib.lib %DESTDIR%\static\
-  - copy src\ctlib\libct.lib %DESTDIR%\static\
-  - copy src\tds\tds.lib %DESTDIR%\static\
   - mkdir %DESTDIR%\include
   - cp include/tds_sysdep_public.h ./%DESTDIR%/include/
   - cd ..\include
   - cp bkpublic.h cspublic.h cstypes.h ctpublic.h sqldb.h sqlfront.h sybdb.h syberror.h sybfront.h ../build/%DESTDIR%/include/
   - cd ..\build
-  - mkdir %DESTDIR%\dynamic
-  - copy src\ctlib\ct.dll %DESTDIR%\dynamic\
-  - copy src\ctlib\ct.lib %DESTDIR%\dynamic\
-  - copy src\ctlib\ct.dll.manifest %DESTDIR%\dynamic\
-  - copy src\dblib\sybdb.dll %DESTDIR%\dynamic\
-  - copy src\dblib\sybdb.lib %DESTDIR%\dynamic\
-  - copy src\dblib\sybdb.dll.manifest %DESTDIR%\dynamic\
-  - copy src\odbc\tdsodbc.dll %DESTDIR%\dynamic\
-  - copy src\odbc\tdsodbc.lib %DESTDIR%\dynamic\
-  - copy src\odbc\tdsodbc.dll.manifest %DESTDIR%\dynamic\
+  - mkdir %DESTDIR%\lib
+  - copy src\ctlib\ct.dll %DESTDIR%\lib\
+  - copy src\ctlib\ct.lib %DESTDIR%\lib\
+  - copy src\ctlib\ct.dll.manifest %DESTDIR%\lib\
+  - copy src\dblib\sybdb.dll %DESTDIR%\lib\
+  - copy src\dblib\sybdb.lib %DESTDIR%\lib\
+  - copy src\dblib\sybdb.dll.manifest %DESTDIR%\lib\
+  - copy src\odbc\tdsodbc.dll %DESTDIR%\lib\
+  - copy src\odbc\tdsodbc.lib %DESTDIR%\lib\
+  - copy src\odbc\tdsodbc.dll.manifest %DESTDIR%\lib\
+  - mkdir %DESTDIR%\lib\static
+  - copy src\dblib\db-lib.lib %DESTDIR%\lib\static\
+  - copy src\ctlib\libct.lib %DESTDIR%\lib\static\
+  - copy src\tds\tds.lib %DESTDIR%\lib\static\
   - mkdir %DESTDIR%\bin
   - copy src\apps\*.exe %DESTDIR%\bin\
   - copy src\apps\*.manifest %DESTDIR%\bin\
@@ -148,7 +158,7 @@ after_test:
   - cd ..
 
 artifacts:
-  - path: vs*.zip
+  - path: freetds-*.zip
     name: win-binaries
 
 deploy:

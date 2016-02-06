@@ -84,6 +84,9 @@ build_script:
   - src\apps\tsql.exe -C
   - cd ..
 
+#on_finish:
+#  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
 test_script:
   - set INSTANCENAME=SQL2008R2SP2
   - "powershell misc\\sql-server-activate-tcp-fixed-port.ps1"

@@ -131,12 +131,16 @@ after_test:
   - mkdir %DESTDIR%\dynamic
   - copy src\ctlib\ct.dll %DESTDIR%\dynamic\
   - copy src\ctlib\ct.lib %DESTDIR%\dynamic\
+  - copy src\ctlib\ct.dll.manifest %DESTDIR%\dynamic\
   - copy src\dblib\sybdb.dll %DESTDIR%\dynamic\
   - copy src\dblib\sybdb.lib %DESTDIR%\dynamic\
+  - copy src\dblib\sybdb.dll.manifest %DESTDIR%\dynamic\
   - copy src\odbc\tdsodbc.dll %DESTDIR%\dynamic\
   - copy src\odbc\tdsodbc.lib %DESTDIR%\dynamic\
+  - copy src\odbc\tdsodbc.dll.manifest %DESTDIR%\dynamic\
   - mkdir %DESTDIR%\bin
   - copy src\apps\*.exe %DESTDIR%\bin\
+  - copy src\apps\*.manifest %DESTDIR%\bin\
   - 7z a ..\%DESTDIR%.zip %DESTDIR%
   - cd ..
 

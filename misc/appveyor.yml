@@ -155,6 +155,15 @@ after_test:
   - copy src\apps\*.manifest %DESTDIR%\bin\
   - 7z a ..\%DESTDIR%.zip %DESTDIR%
   - cd ..
+  # START of non-test code specifically related to creation of artifacts published via GitHub
+  # Build FreeTDS again, this without linking in OpenSSL at all
+  - mkdir build-nossl
+  - cd build-nossl
+  - "%WITH_COMPILER% cmake -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DWITH_OPENSSL=off .."
+  - "%WITH_COMPILER% nmake"
+  - src\apps\tsql.exe -C
+  - cd ..
+  # END of non-test code specifically related to creation of artifacts published via GitHub
 
 artifacts:
   - path: freetds-*.zip

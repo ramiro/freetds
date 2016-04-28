@@ -19,7 +19,7 @@ environment:
     # See: http://stackoverflow.com/a/13751649/163740
     WITH_COMPILER: "cmd /E:ON /V:ON /C ..\\misc\\run_with_compiler.cmd"
     WIN_ICONV_VER: 0.0.6
-    OPENSSL_VER: 1.0.2e
+    OPENSSL_VER: 1.0.2g
 
   matrix:
   - WIDTH: 32

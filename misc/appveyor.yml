@@ -151,6 +151,7 @@ after_test:
   - copy src\dblib\db-lib.lib %DESTDIR%\lib\static\
   - copy src\ctlib\libct.lib %DESTDIR%\lib\static\
   - copy src\tds\tds.lib %DESTDIR%\lib\static\
+  - copy src\replacements\replacements.lib %DESTDIR%\lib\static\
   - mkdir %DESTDIR%\bin
   - copy src\apps\*.exe %DESTDIR%\bin\
   - copy src\apps\*.manifest %DESTDIR%\bin\
@@ -176,6 +177,7 @@ after_test:
   - copy src\dblib\db-lib.lib ..\build\%DESTDIR%\lib-nossl\static\
   - copy src\ctlib\libct.lib ..\build\%DESTDIR%\lib-nossl\static\
   - copy src\tds\tds.lib ..\build\%DESTDIR%\lib-nossl\static\
+  - copy src\replacements\replacements.lib ..\build\%DESTDIR%\lib-nossl\static\
   - cd ..\build
   # END of non-test code specifically related to creation of artifacts published via GitHub
   - 7z a ..\%DESTDIR%.zip %DESTDIR%
